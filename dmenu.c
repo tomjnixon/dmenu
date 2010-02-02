@@ -72,6 +72,7 @@ static int textnw(const char *text, unsigned int len);
 static int textw(const char *text);
 
 /* history */
+static void addhist(HistItem *item);
 static void readhist(char *filename);
 static Bool prevhist();
 static Bool nexthist();
@@ -106,22 +107,23 @@ static HistItem *histloc = NULL;
 
 Bool
 prevhist() {
-	if(histloc == NULL)
-		histloc = history;
-	else if(histloc->prev != NULL)
-		histloc = histloc->prev;
-	else
+	if(histloc->prev == NULL)
 		return False;
-
+	if(histloc->text != NULL)
+		free(histloc->text);
+	histloc->text = strdup(text);
+	histloc = histloc->prev;
 	strncpy(text, histloc->text, sizeof(text));
 	return True;
 }
 
 Bool
 nexthist() {
-	if(histloc == NULL || histloc->next == NULL)
+	if(histloc->next == NULL)
 		return False;
-
+	if(histloc->text != NULL)
+		free(histloc->text);
+	histloc->text = strdup(text);
 	histloc = histloc->next;
 	strncpy(text, histloc->text, sizeof(text));
 	return True;
@@ -596,11 +598,20 @@ readstdin(void) {
 }
 
 void
+addhist(HistItem *item) {
+	item->prev = history;
+	if (history != NULL)
+		history->next = item;
+	item->next = NULL;
+	history = item;
+}
+
+void
 readhist(char *filename){
 	char buf[1024];
 	char *text;
 	int len;
-	HistItem *item = NULL, *last_item = NULL;
+	HistItem *item = NULL;
 	FILE *fp = fopen(filename, "r");
 	if(fp == NULL)
 		eprint("Could not open history file %s\n", filename);
@@ -608,26 +619,26 @@ readhist(char *filename){
 	while (fgets(buf, sizeof(buf), fp))
 	{
 		len = strlen(buf);
-		if (buf[len - 1] == '\n')
-			buf[len - 1] = 0;
+		if(len > 0) {
+			if (buf[len - 1] == '\n')
+				buf[len - 1] = 0;
 
-		text = strdup(buf);
-		if(text == NULL)
-			eprint("Could not allocate emough memory.");
+			text = strdup(buf);
+			if(text == NULL)
+				eprint("Could not allocate emough memory.");
 
-		item = (HistItem *)malloc(sizeof(HistItem));
-		if(item == NULL)
-			eprint("Could not allocate emough memory.");
+			item = (HistItem *)malloc(sizeof(HistItem));
+			if(item == NULL)
+				eprint("Could not allocate emough memory.");
 
-		item ->text = text;
-		item->prev = last_item;
-		if (last_item)
-			last_item->next = item;
-		last_item = item;
+			item->text = text;
+			addhist(item);
+		}
 	}
 
-	item->next = NULL;
-	history = item;
+	addhist((HistItem *)malloc(sizeof(HistItem)));
+	history->text = NULL;
+	histloc = history;
 }
 
 void
