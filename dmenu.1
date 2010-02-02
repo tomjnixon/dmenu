@@ -11,6 +11,7 @@ dmenu \- dynamic menu
 .RB [ \-p " <prompt>"]
 .RB [ \-sb " <color>"]
 .RB [ \-sf " <color>"]
+.RB [ \-hist " <file>"]
 .RB [ \-v ]
 .SH DESCRIPTION
 .SS Overview
@@ -43,6 +44,9 @@ defines the selected background color (#RGB, #RRGGBB, and color names are suppor
 .TP
 .B \-sf <color>
 defines the selected foreground color (#RGB, #RRGGBB, and color names are supported).
+.TP
+.B \-hist <file>
+makes dmenu read a command history from file.
 .TP
 .B \-v
 prints version information to standard output, then exits.

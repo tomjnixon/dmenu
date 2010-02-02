@@ -45,6 +45,13 @@ struct Item {
 	Item *left, *right;	/* traverses items matching current search pattern */
 };
 
+typedef struct HistItem HistItem;
+struct HistItem {
+	char *text;
+	HistItem *next;
+	HistItem *prev;
+};
+
 /* forward declarations */
 static void appenditem(Item *i, Item **list, Item **last);
 static void calcoffsets(void);
@@ -63,6 +70,11 @@ static void run(void);
 static void setup(Bool topbar);
 static int textnw(const char *text, unsigned int len);
 static int textw(const char *text);
+
+/* history */
+static void readhist(char *filename);
+static Bool prevhist();
+static Bool nexthist();
 
 #include "config.h"
 
@@ -88,6 +100,32 @@ static Item *curr = NULL;
 static Window root, win;
 static int (*fstrncmp)(const char *, const char *, size_t n) = strncmp;
 static char *(*fstrstr)(const char *, const char *) = strstr;
+
+static HistItem *history = NULL;
+static HistItem *histloc = NULL;
+
+Bool
+prevhist() {
+	if(histloc == NULL)
+		histloc = history;
+	else if(histloc->prev != NULL)
+		histloc = histloc->prev;
+	else
+		return False;
+
+	strncpy(text, histloc->text, sizeof(text));
+	return True;
+}
+
+Bool
+nexthist() {
+	if(histloc == NULL || histloc->next == NULL)
+		return False;
+
+	histloc = histloc->next;
+	strncpy(text, histloc->text, sizeof(text));
+	return True;
+}
 
 void
 appenditem(Item *i, Item **list, Item **last) {
@@ -471,6 +509,18 @@ kpress(XKeyEvent * e) {
 		strncpy(text, sel->text, sizeof text);
 		match(text);
 		break;
+	case XK_Up:
+		if (history != NULL) {
+			prevhist();
+			match(text);
+		}
+		break;
+	case XK_Down:
+		if (history != NULL) {
+			nexthist();
+			match(text);
+		}
+		break;
 	}
 	drawmenu();
 }
@@ -543,6 +593,41 @@ readstdin(void) {
 			i->next = new;
 		i = new;
 	}
+}
+
+void
+readhist(char *filename){
+	char buf[1024];
+	char *text;
+	int len;
+	HistItem *item = NULL, *last_item = NULL;
+	FILE *fp = fopen(filename, "r");
+	if(fp == NULL)
+		eprint("Could not open history file %s\n", filename);
+
+	while (fgets(buf, sizeof(buf), fp))
+	{
+		len = strlen(buf);
+		if (buf[len - 1] == '\n')
+			buf[len - 1] = 0;
+
+		text = strdup(buf);
+		if(text == NULL)
+			eprint("Could not allocate emough memory.");
+
+		item = (HistItem *)malloc(sizeof(HistItem));
+		if(item == NULL)
+			eprint("Could not allocate emough memory.");
+
+		item ->text = text;
+		item->prev = last_item;
+		if (last_item)
+			last_item->next = item;
+		last_item = item;
+	}
+
+	item->next = NULL;
+	history = item;
 }
 
 void
@@ -694,11 +779,14 @@ main(int argc, char *argv[]) {
 		else if(!strcmp(argv[i], "-sf")) {
 			if(++i < argc) selfgcolor = argv[i];
 		}
+		else if(!strcmp(argv[i], "-hist")){
+			if(++i < argc) readhist(argv[i]);
+		}
 		else if(!strcmp(argv[i], "-v"))
 			eprint("dmenu-"VERSION", © 2006-2008 dmenu engineers, see LICENSE for details\n");
 		else
 			eprint("usage: dmenu [-i] [-b] [-fn <font>] [-nb <color>] [-nf <color>]\n"
-			       "             [-p <prompt>] [-sb <color>] [-sf <color>] [-v]\n");
+			       "             [-p <prompt>] [-sb <color>] [-sf <color>] [-hist <file>] [-v]\n");
 	if(!setlocale(LC_CTYPE, "") || !XSupportsLocale())
 		fprintf(stderr, "warning: no locale support\n");
 	if(!(dpy = XOpenDisplay(NULL)))
